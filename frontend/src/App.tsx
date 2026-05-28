@@ -1,10 +1,11 @@
 import { ConfigProvider, Layout, Tabs, theme } from "antd";
-import { LineChartOutlined, HistoryOutlined, FilterOutlined } from "@ant-design/icons";
+import { LineChartOutlined, HistoryOutlined, FilterOutlined, SettingOutlined } from "@ant-design/icons";
 import zhCN from "antd/locale/zh_CN";
 import { useState } from "react";
 import Dashboard from "./components/Dashboard";
 import HistoryPanel from "./components/HistoryPanel";
 import BreakdownPanel from "./components/BreakdownPanel";
+import ConfigPanel from "./components/ConfigPanel";
 
 const { Header, Content } = Layout;
 
@@ -57,6 +58,16 @@ export default function App() {
                   </span>
                 ),
                 children: <BreakdownPanel />,
+              },
+              {
+                key: "config",
+                label: (
+                  <span>
+                    <SettingOutlined />
+                    策略配置
+                  </span>
+                ),
+                children: <ConfigPanel />,
               },
               {
                 key: "history",

@@ -50,6 +50,13 @@ def init_db():
             screening_date TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS strategy_config (
+            key         TEXT PRIMARY KEY,
+            value       TEXT NOT NULL,
+            description TEXT,
+            updated_at  TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_rec_date ON recommendations(screening_date);
         CREATE INDEX IF NOT EXISTS idx_rec_code ON recommendations(code);
     """)
@@ -190,6 +197,46 @@ def get_screening_details(run_id: int = None, task_id: str = None) -> dict:
     if row and row["details_json"]:
         return json.loads(row["details_json"])
     return {}
+
+
+def get_all_config() -> dict:
+    """读取所有策略配置"""
+    conn = get_connection()
+    rows = conn.execute("SELECT key, value FROM strategy_config").fetchall()
+    conn.close()
+    return {r["key"]: r["value"] for r in rows}
+
+
+def save_config(key: str, value, description: str = None):
+    """保存单个策略配置"""
+    conn = get_connection()
+    now = datetime.now().isoformat()
+    conn.execute(
+        """INSERT INTO strategy_config (key, value, description, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value=excluded.value,
+                                         description=COALESCE(excluded.description, description),
+                                         updated_at=excluded.updated_at""",
+        (key, str(value), description, now),
+    )
+    conn.commit()
+    conn.close()
+
+
+def save_config_batch(items: dict):
+    """批量保存配置项 {key: value, ...}"""
+    conn = get_connection()
+    now = datetime.now().isoformat()
+    for key, value in items.items():
+        conn.execute(
+            """INSERT INTO strategy_config (key, value, updated_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(key) DO UPDATE SET value=excluded.value,
+                                             updated_at=excluded.updated_at""",
+            (key, str(value), now),
+        )
+    conn.commit()
+    conn.close()
 
 
 def _row_to_dict(row) -> dict:

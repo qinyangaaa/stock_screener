@@ -11,7 +11,7 @@ from flask import Flask
 from flask_cors import CORS
 from models.database import init_db
 from scheduler import start_scheduler, stop_scheduler
-from config import app_config
+from config import app_config, load_config_from_db
 
 
 def create_app() -> Flask:
@@ -29,7 +29,8 @@ def create_app() -> Flask:
 
     # 初始化数据库
     init_db()
-    logger.info("数据库初始化完成")
+    load_config_from_db()
+    logger.info("数据库初始化完成，已加载策略配置")
 
     # 注册 API 蓝图
     from api.routes import api_bp

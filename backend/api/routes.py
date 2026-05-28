@@ -113,6 +113,45 @@ def screen_details_latest():
     return jsonify({"details": details})
 
 
+@api_bp.route("/api/config")
+def get_config():
+    """获取所有策略配置项（含元数据和当前值）"""
+    from config import get_config_full
+    cfg_list = get_config_full()
+    # 按 group 分组
+    groups: dict[str, list] = {}
+    for item in cfg_list:
+        g = item.pop("group")
+        groups.setdefault(g, []).append(item)
+    return jsonify({"config": cfg_list, "groups": groups})
+
+
+@api_bp.route("/api/config", methods=["PUT"])
+def update_config():
+    """更新配置项，支持单个或批量"""
+    from config import save_config_to_db, save_config_batch_to_db, reset_config_to_defaults
+    body = request.get_json(silent=True) or {}
+    action = body.get("action", "update")
+
+    if action == "reset":
+        reset_config_to_defaults()
+        return jsonify({"status": "ok", "message": "已重置为默认值"})
+
+    if action == "batch":
+        items = body.get("items", {})
+        if items:
+            save_config_batch_to_db(items)
+        return jsonify({"status": "ok", "updated": len(items)})
+
+    # 单个更新
+    key = body.get("key")
+    value = body.get("value")
+    if not key or value is None:
+        return jsonify({"error": "缺少 key 或 value"}), 400
+    save_config_to_db(key, value)
+    return jsonify({"status": "ok", "key": key, "value": value})
+
+
 @api_bp.route("/api/stock/<code>/detail")
 def stock_detail(code):
     results = db.get_stock_detail(code)

@@ -105,3 +105,19 @@ export interface ScreeningDetailsResponse {
   task_id?: string;
   details: ScreeningDetails;
 }
+
+// 配置项类型
+export interface ConfigItem {
+  key: string;
+  type: "float" | "int" | "bool" | "text";
+  value: number | string | boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  desc: string;
+}
+
+export interface ConfigResponse {
+  config: ConfigItem[];
+  groups: Record<string, ConfigItem[]>;
+}

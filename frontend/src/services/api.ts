@@ -1,4 +1,4 @@
-import type { LatestResponse, HistoryResponse, TaskStatus, StockDetailResponse, ScreeningDetailsResponse } from "../types/stock";
+import type { LatestResponse, HistoryResponse, TaskStatus, StockDetailResponse, ScreeningDetailsResponse, ConfigResponse } from "../types/stock";
 
 const BASE = "";
 
@@ -44,6 +44,31 @@ export function fetchStockDetail(code: string): Promise<StockDetailResponse> {
 export function fetchScreeningDetails(taskId?: string): Promise<ScreeningDetailsResponse> {
   const url = taskId ? `/api/screen/details/${taskId}` : "/api/screen/details";
   return request<ScreeningDetailsResponse>(url);
+}
+
+export function fetchConfig(): Promise<ConfigResponse> {
+  return request<ConfigResponse>("/api/config");
+}
+
+export function updateConfig(key: string, value: string | number | boolean): Promise<{ status: string }> {
+  return request("/api/config", {
+    method: "PUT",
+    body: JSON.stringify({ key, value }),
+  });
+}
+
+export function updateConfigBatch(items: Record<string, string | number | boolean>): Promise<{ status: string }> {
+  return request("/api/config", {
+    method: "PUT",
+    body: JSON.stringify({ action: "batch", items }),
+  });
+}
+
+export function resetConfig(): Promise<{ status: string }> {
+  return request("/api/config", {
+    method: "PUT",
+    body: JSON.stringify({ action: "reset" }),
+  });
 }
 
 export function fetchHealth(): Promise<{ status: string; date: string }> {
