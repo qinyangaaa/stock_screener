@@ -1,0 +1,110 @@
+"""REST API 路由"""
+
+import threading
+import logging
+from datetime import date
+from flask import Blueprint, jsonify, request
+
+from models import database as db
+from strategy.engine import ScreeningEngine
+from trading_calendar import is_trading_day
+
+logger = logging.getLogger("API")
+
+api_bp = Blueprint("api", __name__)
+
+_engine = ScreeningEngine()
+_task_lock = threading.Lock()
+_running = False
+
+
+def _get_engine():
+    return _engine
+
+
+@api_bp.route("/api/health")
+def health():
+    return jsonify({"status": "ok", "date": date.today().isoformat()})
+
+
+@api_bp.route("/api/screen/run", methods=["POST"])
+def screen_run():
+    global _running
+    with _task_lock:
+        if _running:
+            return jsonify({"error": "已有筛选任务正在运行", "task_id": _engine.task_id}), 409
+        _running = True
+
+    trading_day = is_trading_day()
+
+    def _run():
+        global _running
+        try:
+            _engine.run()
+        finally:
+            _running = False
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    resp = {"task_id": _engine.task_id, "status": "started"}
+    if not trading_day:
+        resp["warning"] = "今日非交易日，筛选结果可能不完整"
+    return jsonify(resp), 202
+
+
+@api_bp.route("/api/screen/status/<task_id>")
+def screen_status(task_id):
+    progress = _engine.progress
+    run_info = db.get_run_by_task_id(task_id)
+    return jsonify({
+        "task_id": task_id,
+        "progress": progress,
+        "run_info": run_info,
+    })
+
+
+@api_bp.route("/api/screen/cancel", methods=["POST"])
+def screen_cancel():
+    _engine.cancel()
+    return jsonify({"status": "cancelled"})
+
+
+@api_bp.route("/api/recommendations/latest")
+def recommendations_latest():
+    results = db.get_latest_recommendations()
+    run = db.get_latest_run_status()
+    return jsonify({
+        "date": results[0]["screening_date"] if results else None,
+        "total": len(results),
+        "recommendations": results,
+        "last_run": run,
+        "is_trading_day": is_trading_day(),
+    })
+
+
+@api_bp.route("/api/recommendations/history")
+def recommendations_history():
+    d = request.args.get("date", date.today().isoformat())
+    results = db.get_recommendations_by_date(d)
+    return jsonify({
+        "date": d,
+        "total": len(results),
+        "recommendations": results,
+    })
+
+
+@api_bp.route("/api/recommendations/history/dates")
+def recommendations_dates():
+    return jsonify({"dates": db.get_recommendation_dates()})
+
+
+@api_bp.route("/api/stock/<code>/detail")
+def stock_detail(code):
+    results = db.get_stock_detail(code)
+    run = db.get_latest_run_status()
+    return jsonify({
+        "code": code,
+        "history": results,
+        "last_run": run,
+    })
