@@ -55,3 +55,53 @@ export interface StockDetailResponse {
   history: Recommendation[];
   last_run: RunStatus | null;
 }
+
+// 筛选明细相关类型
+export interface Stage1FailedSample {
+  code: string;
+  name: string;
+  change_pct?: number;
+  volume_ratio?: number;
+  turnover?: number;
+  market_cap?: number;
+  detail: string;
+}
+
+export interface Stage1Detail {
+  passed: number;
+  rule_fails: Record<string, number>;
+  failed_samples: Record<string, Stage1FailedSample[]>;
+  is_extreme: boolean;
+}
+
+export interface Stage2CandidateResult {
+  code: string;
+  name: string;
+  change_pct: number;
+  volume_ratio: number;
+  turnover: number;
+  market_cap: number;
+  rule_results: Record<string, { passed: boolean; detail: string }>;
+}
+
+export interface Stage2FailedResult extends Stage2CandidateResult {
+  failed_rule: string;
+}
+
+export interface Stage2Detail {
+  passed: number;
+  rule_fails: Record<string, number>;
+  candidates: Stage2CandidateResult[];
+  failed: Stage2FailedResult[];
+}
+
+export interface ScreeningDetails {
+  total_stocks: number;
+  stage1: Stage1Detail;
+  stage2: Stage2Detail;
+}
+
+export interface ScreeningDetailsResponse {
+  task_id?: string;
+  details: ScreeningDetails;
+}

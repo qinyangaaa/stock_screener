@@ -29,7 +29,8 @@ def init_db():
             total_stocks INTEGER DEFAULT 0,
             passed_stage1 INTEGER DEFAULT 0,
             passed_all   INTEGER DEFAULT 0,
-            error       TEXT
+            error       TEXT,
+            details_json TEXT
         );
 
         CREATE TABLE IF NOT EXISTS recommendations (
@@ -163,6 +164,32 @@ def get_stock_detail(code: str, limit: int = 5) -> list:
     ).fetchall()
     conn.close()
     return [_row_to_dict(r) for r in rows]
+
+
+def save_screening_details(run_id: int, details: dict):
+    """将筛选明细 JSON 写入 screening_runs.details_json"""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE screening_runs SET details_json=? WHERE id=?",
+        (json.dumps(details, ensure_ascii=False), run_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_screening_details(run_id: int = None, task_id: str = None) -> dict:
+    """获取筛选明细"""
+    conn = get_connection()
+    if run_id:
+        row = conn.execute("SELECT details_json FROM screening_runs WHERE id=?", (run_id,)).fetchone()
+    elif task_id:
+        row = conn.execute("SELECT details_json FROM screening_runs WHERE task_id=?", (task_id,)).fetchone()
+    else:
+        row = conn.execute("SELECT details_json FROM screening_runs ORDER BY id DESC LIMIT 1").fetchone()
+    conn.close()
+    if row and row["details_json"]:
+        return json.loads(row["details_json"])
+    return {}
 
 
 def _row_to_dict(row) -> dict:

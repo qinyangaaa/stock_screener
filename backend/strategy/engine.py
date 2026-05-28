@@ -16,6 +16,7 @@ from strategy.rules import (
 from strategy.scorer import compute_scores
 from models.database import (
     save_screening_run, update_screening_run, save_recommendations,
+    save_screening_details,
 )
 
 logger = logging.getLogger("STOCK_SCREENER")
@@ -79,15 +80,51 @@ class ScreeningEngine:
             down_ratio = down_count / total if total > 0 else 0
             is_extreme = up_ratio > cfg.extreme_market_ratio or down_ratio > cfg.extreme_market_ratio
 
-            # 规则 1-4 批量过滤
+            # 规则 1-4 批量过滤（记录每只股票各规则的通过/失败详情）
             stage1_candidates = []
+            s1_rule_fails = {"rule1_change_pct": 0, "rule2_volume_ratio": 0,
+                             "rule3_turnover": 0, "rule4_market_cap": 0}
+            s1_failed_samples = {"rule1_change_pct": [], "rule2_volume_ratio": [],
+                                 "rule3_turnover": [], "rule4_market_cap": []}
+            max_samples_per_rule = 30
+
             for q in quotes:
                 if self._cancelled:
                     return result
-                ok1, _ = rule1_change_pct(q, is_extreme)
-                ok2, _ = rule2_volume_ratio(q)
-                ok3, _ = rule3_turnover(q)
-                ok4, _ = rule4_market_cap(q)
+                ok1, d1 = rule1_change_pct(q, is_extreme)
+                ok2, d2 = rule2_volume_ratio(q)
+                ok3, d3 = rule3_turnover(q)
+                ok4, d4 = rule4_market_cap(q)
+
+                if not ok1:
+                    s1_rule_fails["rule1_change_pct"] += 1
+                    if len(s1_failed_samples["rule1_change_pct"]) < max_samples_per_rule:
+                        s1_failed_samples["rule1_change_pct"].append({
+                            "code": q.code, "name": q.name,
+                            "change_pct": q.change_pct, "detail": d1,
+                        })
+                if not ok2:
+                    s1_rule_fails["rule2_volume_ratio"] += 1
+                    if len(s1_failed_samples["rule2_volume_ratio"]) < max_samples_per_rule:
+                        s1_failed_samples["rule2_volume_ratio"].append({
+                            "code": q.code, "name": q.name,
+                            "volume_ratio": q.volume_ratio, "detail": d2,
+                        })
+                if not ok3:
+                    s1_rule_fails["rule3_turnover"] += 1
+                    if len(s1_failed_samples["rule3_turnover"]) < max_samples_per_rule:
+                        s1_failed_samples["rule3_turnover"].append({
+                            "code": q.code, "name": q.name,
+                            "turnover": q.turnover, "detail": d3,
+                        })
+                if not ok4:
+                    s1_rule_fails["rule4_market_cap"] += 1
+                    if len(s1_failed_samples["rule4_market_cap"]) < max_samples_per_rule:
+                        s1_failed_samples["rule4_market_cap"].append({
+                            "code": q.code, "name": q.name,
+                            "market_cap": q.market_cap, "detail": d4,
+                        })
+
                 if all([ok1, ok2, ok3, ok4]):
                     stage1_candidates.append(q)
 
@@ -99,6 +136,17 @@ class ScreeningEngine:
 
             # ========== 第二级过滤 ==========
             if not stage1_candidates:
+                details = {
+                    "total_stocks": result["total_stocks"],
+                    "stage1": {
+                        "passed": 0,
+                        "rule_fails": s1_rule_fails,
+                        "failed_samples": s1_failed_samples,
+                        "is_extreme": is_extreme,
+                    },
+                    "stage2": {"passed": 0, "rule_fails": {}, "candidates": [], "failed": []},
+                }
+                save_screening_details(self.run_id, details)
                 self._finish_run("completed", result, 0)
                 return result
 
@@ -107,6 +155,7 @@ class ScreeningEngine:
             index_bars = fetcher.fetch_index_minute_bars()
 
             stage2_candidates = []
+            stage2_failed = []  # 记录进入二级但未全部通过的个股详情
             total_s1 = len(stage1_candidates)
             fail_stats = {"no_data": 0, "rule5": 0, "rule6": 0, "rule7": 0, "rule8": 0}
             for idx, quote in enumerate(stage1_candidates):
@@ -126,6 +175,15 @@ class ScreeningEngine:
                 minute_bars = fetcher.fetch_minute_bars(quote.code)
                 if len(minute_bars) < 6:
                     fail_stats["no_data"] += 1
+                    stage2_failed.append({
+                        "code": quote.code, "name": quote.name,
+                        "change_pct": quote.change_pct,
+                        "volume_ratio": quote.volume_ratio,
+                        "turnover": quote.turnover,
+                        "market_cap": quote.market_cap,
+                        "failed_rule": "no_data",
+                        "rule_results": {"rule5": {"passed": False, "detail": "分钟K线数据不足"}},
+                    })
                     continue
                 time.sleep(0.05)
 
@@ -134,6 +192,16 @@ class ScreeningEngine:
                 rule_results["rule5"] = {"passed": ok5, "detail": d5}
                 if not ok5:
                     fail_stats["rule5"] += 1
+                    stage2_failed.append({
+                        "code": quote.code, "name": quote.name,
+                        "change_pct": quote.change_pct,
+                        "volume_ratio": quote.volume_ratio,
+                        "turnover": quote.turnover,
+                        "market_cap": quote.market_cap,
+                        "failed_rule": "rule5_step_volume",
+                        "rule_results": {k: {"passed": v["passed"], "detail": v["detail"]}
+                                         for k, v in rule_results.items()},
+                    })
                     continue
 
                 # 获取日K线
@@ -147,6 +215,16 @@ class ScreeningEngine:
                 rule_results["rule6"] = {"passed": ok6, "detail": d6}
                 if not ok6:
                     fail_stats["rule6"] += 1
+                    stage2_failed.append({
+                        "code": quote.code, "name": quote.name,
+                        "change_pct": quote.change_pct,
+                        "volume_ratio": quote.volume_ratio,
+                        "turnover": quote.turnover,
+                        "market_cap": quote.market_cap,
+                        "failed_rule": "rule6_ma_chip",
+                        "rule_results": {k: {"passed": v["passed"], "detail": v["detail"]}
+                                         for k, v in rule_results.items()},
+                    })
                     continue
 
                 # 规则 7: 分时强度
@@ -154,6 +232,16 @@ class ScreeningEngine:
                 rule_results["rule7"] = {"passed": ok7, "detail": d7}
                 if not ok7:
                     fail_stats["rule7"] += 1
+                    stage2_failed.append({
+                        "code": quote.code, "name": quote.name,
+                        "change_pct": quote.change_pct,
+                        "volume_ratio": quote.volume_ratio,
+                        "turnover": quote.turnover,
+                        "market_cap": quote.market_cap,
+                        "failed_rule": "rule7_intraday",
+                        "rule_results": {k: {"passed": v["passed"], "detail": v["detail"]}
+                                         for k, v in rule_results.items()},
+                    })
                     continue
 
                 # 规则 8: 尾盘信号
@@ -161,6 +249,16 @@ class ScreeningEngine:
                 rule_results["rule8"] = {"passed": ok8, "detail": d8}
                 if not ok8:
                     fail_stats["rule8"] += 1
+                    stage2_failed.append({
+                        "code": quote.code, "name": quote.name,
+                        "change_pct": quote.change_pct,
+                        "volume_ratio": quote.volume_ratio,
+                        "turnover": quote.turnover,
+                        "market_cap": quote.market_cap,
+                        "failed_rule": "rule8_late_signal",
+                        "rule_results": {k: {"passed": v["passed"], "detail": v["detail"]}
+                                         for k, v in rule_results.items()},
+                    })
                     continue
 
                 # 全部通过
@@ -192,6 +290,35 @@ class ScreeningEngine:
                 time.sleep(0.1)
 
             logger.info(f"二级过滤失败分布: {fail_stats}")
+
+            # 汇总筛选明细
+            details = {
+                "total_stocks": result["total_stocks"],
+                "stage1": {
+                    "passed": len(stage1_candidates),
+                    "rule_fails": s1_rule_fails,
+                    "failed_samples": s1_failed_samples,
+                    "is_extreme": is_extreme,
+                },
+                "stage2": {
+                    "passed": len(stage2_candidates),
+                    "rule_fails": fail_stats,
+                    "candidates": [
+                        {
+                            "code": q.code, "name": q.name,
+                            "change_pct": q.change_pct,
+                            "volume_ratio": q.volume_ratio,
+                            "turnover": q.turnover,
+                            "market_cap": q.market_cap,
+                            "rule_results": {k: {"passed": v["passed"], "detail": v["detail"]}
+                                             for k, v in item["rule_results"].items()},
+                        }
+                        for item in stage2_candidates
+                    ],
+                    "failed": stage2_failed,
+                },
+            }
+            save_screening_details(self.run_id, details)
 
             result["stage2_passed"] = len(stage2_candidates)
             result["fail_stats"] = fail_stats

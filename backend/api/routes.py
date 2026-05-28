@@ -99,6 +99,20 @@ def recommendations_dates():
     return jsonify({"dates": db.get_recommendation_dates()})
 
 
+@api_bp.route("/api/screen/details/<task_id>")
+def screen_details(task_id):
+    """返回某次筛选的明细，包括各阶段各规则通过/失败详情"""
+    details = db.get_screening_details(task_id=task_id)
+    return jsonify({"task_id": task_id, "details": details})
+
+
+@api_bp.route("/api/screen/details")
+def screen_details_latest():
+    """返回最近一次筛选的明细"""
+    details = db.get_screening_details()
+    return jsonify({"details": details})
+
+
 @api_bp.route("/api/stock/<code>/detail")
 def stock_detail(code):
     results = db.get_stock_detail(code)

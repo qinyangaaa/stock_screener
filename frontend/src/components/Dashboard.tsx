@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Empty, Spin, Typography, Divider } from "antd";
-import type { Recommendation, RunStatus } from "../types/stock";
+import type { LatestResponse, Recommendation, RunStatus } from "../types/stock";
 import { fetchLatest } from "../services/api";
 import StockCard from "./StockCard";
 import StockDetail from "./StockDetail";
@@ -10,12 +10,7 @@ const { Title } = Typography;
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<{
-    date: string | null;
-    recommendations: Recommendation[];
-    last_run: RunStatus | null;
-    is_trading_day: boolean;
-  } | null>(null);
+  const [data, setData] = useState<LatestResponse | null>(null);
   const [selectedStock, setSelectedStock] = useState<Recommendation | null>(null);
 
   const load = useCallback(async () => {

@@ -1,4 +1,4 @@
-import type { LatestResponse, HistoryResponse, TaskStatus, StockDetailResponse } from "../types/stock";
+import type { LatestResponse, HistoryResponse, TaskStatus, StockDetailResponse, ScreeningDetailsResponse } from "../types/stock";
 
 const BASE = "";
 
@@ -39,6 +39,11 @@ export function fetchTaskStatus(taskId: string): Promise<TaskStatus> {
 
 export function fetchStockDetail(code: string): Promise<StockDetailResponse> {
   return request<StockDetailResponse>(`/api/stock/${code}/detail`);
+}
+
+export function fetchScreeningDetails(taskId?: string): Promise<ScreeningDetailsResponse> {
+  const url = taskId ? `/api/screen/details/${taskId}` : "/api/screen/details";
+  return request<ScreeningDetailsResponse>(url);
 }
 
 export function fetchHealth(): Promise<{ status: string; date: string }> {
