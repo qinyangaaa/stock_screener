@@ -54,6 +54,11 @@ export interface StockDetailResponse {
   code: string;
   history: Recommendation[];
   last_run: RunStatus | null;
+  analysis?: Stage2CandidateResult;
+}
+
+export interface ScreeningRunsResponse {
+  runs: RunStatus[];
 }
 
 // 筛选明细相关类型
@@ -67,8 +72,18 @@ export interface Stage1FailedSample {
   detail: string;
 }
 
+export interface Stage1PassedStock {
+  code: string;
+  name: string;
+  change_pct: number;
+  volume_ratio: number;
+  turnover: number;
+  market_cap: number;
+}
+
 export interface Stage1Detail {
   passed: number;
+  passed_stocks: Stage1PassedStock[];
   rule_fails: Record<string, number>;
   failed_samples: Record<string, Stage1FailedSample[]>;
   is_extreme: boolean;

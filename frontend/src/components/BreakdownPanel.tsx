@@ -6,7 +6,7 @@ import {
   FilterOutlined, CheckCircleOutlined, CloseCircleOutlined,
   WarningOutlined, FallOutlined,
 } from "@ant-design/icons";
-import type { ScreeningDetails, Stage2FailedResult, Stage1FailedSample } from "../types/stock";
+import type { ScreeningDetails, Stage2FailedResult } from "../types/stock";
 import { fetchScreeningDetails } from "../services/api";
 
 const { Title, Text } = Typography;
@@ -25,16 +25,6 @@ const RULE_LABELS_S2: Record<string, string> = {
   rule7: "规则7: 分时强度",
   rule8: "规则8: 尾盘信号",
 };
-
-function getSampleValueCol(ruleKey: string) {
-  const map: Record<string, { key: string; label: string; suffix: string }> = {
-    rule1_change_pct: { key: "change_pct", label: "涨跌幅", suffix: "%" },
-    rule2_volume_ratio: { key: "volume_ratio", label: "量比", suffix: "" },
-    rule3_turnover: { key: "turnover", label: "换手率", suffix: "%" },
-    rule4_market_cap: { key: "market_cap", label: "流通市值", suffix: "亿" },
-  };
-  return map[ruleKey] || { key: "detail", label: "原因", suffix: "" };
-}
 
 export default function BreakdownPanel() {
   const [details, setDetails] = useState<ScreeningDetails | null>(null);
@@ -62,43 +52,23 @@ export default function BreakdownPanel() {
 
   const { stage1, stage2 } = details;
 
-  // ==== Stage 1 failed samples table ====
-  const stage1SampleTables = Object.entries(stage1.failed_samples).map(([ruleKey, samples]) => {
-    const { key, label, suffix } = getSampleValueCol(ruleKey);
-    const columns = [
-      { title: "代码", dataIndex: "code", key: "code", width: 90 },
-      { title: "名称", dataIndex: "name", key: "name", width: 100 },
-      {
-        title: label,
-        dataIndex: key,
-        key,
-        width: 120,
-        render: (v: number) => v !== undefined ? `${v}${suffix}` : "-",
-      },
-      { title: "判定", dataIndex: "detail", key: "detail", ellipsis: true },
-    ];
-    return (
-      <Card
-        key={ruleKey}
-        size="small"
-        title={
-          <span>
-            {RULE_LABELS_S1[ruleKey] || ruleKey}
-            <Tag color="red" style={{ marginLeft: 8 }}>{samples.length} 只样本</Tag>
-          </span>
-        }
-        style={{ marginBottom: 12 }}
-      >
-        <Table
-          dataSource={samples}
-          columns={columns}
-          rowKey="code"
-          size="small"
-          pagination={false}
-        />
-      </Card>
-    );
-  });
+  // ==== Stage 1 passed stocks table ====
+  const stage1PassedCols = [
+    { title: "#", dataIndex: "_idx", key: "_idx", width: 40,
+      render: (_: unknown, __: unknown, idx: number) => idx + 1 },
+    { title: "代码", dataIndex: "code", key: "code", width: 90 },
+    { title: "名称", dataIndex: "name", key: "name", width: 100 },
+    {
+      title: "涨跌幅", dataIndex: "change_pct", key: "change_pct", width: 80,
+      render: (v: number) => <span style={{ color: v >= 0 ? "#cf1322" : "#3f8600" }}>{v}%</span>,
+    },
+    { title: "量比", dataIndex: "volume_ratio", key: "volume_ratio", width: 80,
+      render: (v: number) => v?.toFixed(2) ?? "-" },
+    { title: "换手率", dataIndex: "turnover", key: "turnover", width: 80,
+      render: (v: number) => `${v}%` },
+    { title: "市值(亿)", dataIndex: "market_cap", key: "market_cap", width: 90,
+      render: (v: number) => v > 0 ? v.toFixed(0) : "-" },
+  ];
 
   // ==== Stage 2 candidates table ====
   const stage2CandidateCols = [
@@ -233,27 +203,37 @@ export default function BreakdownPanel() {
           children: (
             <div>
               <Row gutter={16} style={{ marginBottom: 16 }}>
-                {Object.entries(RULE_LABELS_S1).map(([key, label]) => (
-                  <Col span={6} key={key}>
-                    <Card size="small">
-                      <Statistic
-                        title={label}
-                        value={stage1.rule_fails[key] || 0}
-                        suffix={`只未通过 (${details.total_stocks > 0
-                          ? ((stage1.rule_fails[key] || 0) / details.total_stocks * 100).toFixed(1)
-                          : 0}%)`}
-                        valueStyle={{ color: "#ff4d4f", fontSize: 20 }}
-                      />
-                    </Card>
-                  </Col>
-                ))}
+                {Object.entries(RULE_LABELS_S1).map(([key, label]) => {
+                  const failCount = stage1.rule_fails[key] || 0;
+                  return (
+                    <Col span={6} key={key}>
+                      <Card size="small">
+                        <Statistic
+                          title={label}
+                          value={failCount}
+                          suffix={`只未通过 (${details.total_stocks > 0
+                            ? (failCount / details.total_stocks * 100).toFixed(1)
+                            : 0}%)`}
+                          valueStyle={{ color: "#ff4d4f", fontSize: 20 }}
+                        />
+                      </Card>
+                    </Col>
+                  );
+                })}
               </Row>
-              <Text type="secondary">
-                以下展示各规则未通过的前30只样本，可了解具体哪些指标不达标。
+
+              <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+                以下是通过一级过滤的 {stage1.passed} 只股票，展示其四项关键指标。
               </Text>
-              {stage1SampleTables.length > 0 ? stage1SampleTables : (
-                <Empty description="所有规则一级过滤全部通过（非常罕见）" />
-              )}
+              <Table
+                dataSource={stage1.passed_stocks || []}
+                columns={stage1PassedCols}
+                rowKey="code"
+                size="small"
+                pagination={{ pageSize: 50, size: "small" }}
+                scroll={{ x: 600 }}
+                locale={{ emptyText: "无股票通过一级过滤" }}
+              />
             </div>
           ),
         }]}

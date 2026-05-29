@@ -140,6 +140,7 @@ class ScreeningEngine:
                     "total_stocks": result["total_stocks"],
                     "stage1": {
                         "passed": 0,
+                        "passed_stocks": [],
                         "rule_fails": s1_rule_fails,
                         "failed_samples": s1_failed_samples,
                         "is_extreme": is_extreme,
@@ -292,10 +293,21 @@ class ScreeningEngine:
             logger.info(f"二级过滤失败分布: {fail_stats}")
 
             # 汇总筛选明细
+            stage1_passed_stocks = [
+                {
+                    "code": q.code, "name": q.name,
+                    "change_pct": q.change_pct,
+                    "volume_ratio": q.volume_ratio,
+                    "turnover": q.turnover,
+                    "market_cap": q.market_cap,
+                }
+                for q in stage1_candidates
+            ]
             details = {
                 "total_stocks": result["total_stocks"],
                 "stage1": {
                     "passed": len(stage1_candidates),
+                    "passed_stocks": stage1_passed_stocks,
                     "rule_fails": s1_rule_fails,
                     "failed_samples": s1_failed_samples,
                     "is_extreme": is_extreme,

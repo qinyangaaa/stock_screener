@@ -152,12 +152,32 @@ def update_config():
     return jsonify({"status": "ok", "key": key, "value": value})
 
 
+@api_bp.route("/api/screen/runs")
+def screen_runs():
+    """获取最近的筛选运行记录"""
+    runs = db.get_screening_runs()
+    # 去掉较大的 details_json 字段
+    for r in runs:
+        r.pop("details_json", None)
+    return jsonify({"runs": runs})
+
+
 @api_bp.route("/api/stock/<code>/detail")
 def stock_detail(code):
     results = db.get_stock_detail(code)
     run = db.get_latest_run_status()
+    # 尝试从最近一次运行的明细中补充该股票的详细数据
+    extra = {}
+    details = db.get_screening_details()
+    s2_all = (details.get("stage2", {}).get("candidates", []) +
+              details.get("stage2", {}).get("failed", []))
+    for s in s2_all:
+        if s.get("code") == code:
+            extra = s
+            break
     return jsonify({
         "code": code,
         "history": results,
         "last_run": run,
+        "analysis": extra,
     })

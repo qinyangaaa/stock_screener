@@ -1,4 +1,4 @@
-import type { LatestResponse, HistoryResponse, TaskStatus, StockDetailResponse, ScreeningDetailsResponse, ConfigResponse } from "../types/stock";
+import type { LatestResponse, HistoryResponse, TaskStatus, StockDetailResponse, ScreeningDetailsResponse, ConfigResponse, ScreeningRunsResponse } from "../types/stock";
 
 const BASE = "";
 
@@ -69,6 +69,10 @@ export function resetConfig(): Promise<{ status: string }> {
     method: "PUT",
     body: JSON.stringify({ action: "reset" }),
   });
+}
+
+export function fetchScreeningRuns(): Promise<ScreeningRunsResponse> {
+  return request<ScreeningRunsResponse>("/api/screen/runs");
 }
 
 export function fetchHealth(): Promise<{ status: string; date: string }> {

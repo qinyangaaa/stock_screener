@@ -184,6 +184,16 @@ def save_screening_details(run_id: int, details: dict):
     conn.close()
 
 
+def get_screening_runs(limit: int = 30) -> list:
+    """获取最近的筛选运行记录"""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM screening_runs ORDER BY id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def get_screening_details(run_id: int = None, task_id: str = None) -> dict:
     """获取筛选明细"""
     conn = get_connection()
