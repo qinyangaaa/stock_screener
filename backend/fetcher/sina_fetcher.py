@@ -23,7 +23,7 @@ _CODE_CACHE: Optional[list[tuple[str, str]]] = None
 
 
 def _get_stock_codes() -> list[tuple[str, str]]:
-    """获取全 A 股代码和名称，带缓存"""
+    """获取全 A 股代码和名称，带缓存，排除指定板块"""
     global _CODE_CACHE
     if _CODE_CACHE is not None:
         return _CODE_CACHE
@@ -34,6 +34,13 @@ def _get_stock_codes() -> list[tuple[str, str]]:
         return codes
     except Exception:
         return []
+
+
+def _filter_codes(codes: list[tuple[str, str]], exclude_prefixes: list[str]) -> list[tuple[str, str]]:
+    """过滤掉指定板块的股票"""
+    if not exclude_prefixes:
+        return codes
+    return [(c, n) for c, n in codes if not any(c.startswith(p) for p in exclude_prefixes)]
 
 
 def _sina_code(em_code: str) -> str:
@@ -144,6 +151,13 @@ class SinaFetcher(BaseFetcher):
         codes = _get_stock_codes()
         if not codes:
             return []
+
+        # 过滤掉创业板(300)和科创板(688)等指定板块
+        from config import strategy_config
+        exclude_str = getattr(strategy_config, "exclude_boards", "")
+        if exclude_str:
+            exclude_prefixes = [p.strip() for p in exclude_str.split(",") if p.strip()]
+            codes = _filter_codes(codes, exclude_prefixes)
 
         all_quotes = []
         batch_size = 800

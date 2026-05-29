@@ -60,6 +60,9 @@ class StrategyConfig:
     # 推荐
     top_n_strong: int = 5
 
+    # 板块过滤
+    exclude_boards: str = "300,688"  # 排除的板块代码前缀，逗号分隔（300=创业板, 688=科创板）
+
 
 @dataclass
 class AppConfig:
@@ -116,6 +119,8 @@ CONFIG_META = {
     "score_late_signal_weight":  {"group": "评分权重", "type": "float", "min": 0, "max": 1, "step": 0.05, "desc": "尾盘信号权重"},
     # 推荐
     "top_n_strong": {"group": "推荐", "type": "int", "min": 1, "max": 20, "step": 1, "desc": "强烈推荐前N只"},
+    # 板块过滤
+    "exclude_boards": {"group": "数据源", "type": "text", "desc": "排除板块代码前缀（逗号分隔，如 300,688）"},
 }
 
 
